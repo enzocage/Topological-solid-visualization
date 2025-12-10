@@ -1,6 +1,9 @@
 # **🪐 Topological Shapes Visualization** 
 
+View: https://topologic.netlify.app
+
 10.12.2025 by [felixschmidt.org](http://felixschmidt.org)
+
 
 A comprehensive, interactive 3D explorer for mathematical surfaces and topological shapes. This application visualizes over 50 complex parametric geometries using **Three.js**, allowing users to manipulate mathematical variables in real-time.
 
