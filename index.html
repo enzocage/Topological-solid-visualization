@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Topologische Körper Visualisierung (70+)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #4a4a4a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        .glass-panel {
+            background: rgba(20, 20, 30, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+
+        .slider-container { margin-bottom: 12px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #ccc; margin-bottom: 4px; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #3b82f6; }
+        
+        .hidden-ui { transform: translateX(120%); opacity: 0; pointer-events: none; }
+
+        /* Kleine Panel Nav Buttons */
+        .nav-btn {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .nav-btn:hover { background: rgba(59, 130, 246, 0.5); }
+
+        /* Section Dividers */
+        .section-divider { border-top: 1px solid rgba(255, 255, 255, 0.15); margin: 15px 0; }
+        .section-title { font-size: 0.75rem; text-transform: uppercase; color: #6b7280; letter-spacing: 0.05em; margin-bottom: 8px; font-weight: bold; }
+
+        /* Floating Nav Buttons (Bottom Right) */
+        .floating-nav {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 10px;
+            z-index: 40;
+        }
+        .float-btn {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .float-btn:hover {
+            background: rgba(59, 130, 246, 0.8);
+            transform: scale(1.1);
+            border-color: white;
+        }
+        .float-btn:active { transform: scale(0.95); }
+
+        /* NEU: Header Overlay */
+        .app-header {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 50;
+            pointer-events: none;
+        }
+        .app-header h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: white;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+            letter-spacing: -0.02em;
+            background: linear-gradient(to right, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Overlay -->
+    <div class="app-header">
+        <h1>topology browser by felix schmidt</h1>
+    </div>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Toggle (Oben Rechts) -->
+    <button id="toggle-ui" class="fixed top-4 right-4 z-50 p-2 bg-blue-600 hover:bg-blue-500 rounded-full shadow-lg text-white transition-all" onclick="toggleUI()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+    </button>
+
+    <!-- Externe Navigation (Unten Rechts) -->
+    <div class="floating-nav">
+        <button id="float-prev" class="float-btn" title="Vorherige Form">&lt;</button>
+        <button id="float-next" class="float-btn" title="Nächste Form">&gt;</button>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="ui-panel" class="glass-panel fixed top-4 right-16 w-80 max-h-[90vh] overflow-y-auto rounded-xl p-5 z-40 text-white">
+        <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2 text-blue-400">Topologie Explorer</h2>
+        
+        <!-- 1. Darstellungs-Variierer -->
+        <div class="mb-4">
+            <div class="section-title">Darstellungsart</div>
+            <div class="flex justify-between items-center mb-2">
+                <label class="block text-sm font-medium text-gray-300" id="mode-label">Modus</label>
+                <div class="flex space-x-2">
+                    <button id="mode-prev-btn" class="nav-btn">&lt;</button>
+                    <button id="mode-next-btn" class="nav-btn">&gt;</button>
+                </div>
+            </div>
+            <select id="mode-select" class="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 text-sm mb-3">
+                <!-- Modes inserted via JS -->
+            </select>
+            <!-- Modus Parameter -->
+            <div id="mode-parameters-container" class="bg-gray-800/50 rounded p-3 mb-2 border border-gray-700">
+                <!-- Dynamic Content -->
+            </div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- 2. Form Auswahl -->
+        <div class="mb-6">
+            <div class="section-title">Geometrie</div>
+            <div class="flex justify-between items-center mb-2">
+                <label class="block text-sm font-medium text-gray-300">Form</label>
+                <div class="flex space-x-2">
+                    <button id="prev-btn" class="nav-btn">&lt;</button>
+                    <button id="next-btn" class="nav-btn">&gt;</button>
+                </div>
+            </div>
+            <select id="shape-select" class="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 text-sm">
+                <!-- Shapes inserted via JS -->
+            </select>
+        </div>
+
+        <!-- Form Parameter -->
+        <div id="parameters-container" class="mb-6"></div>
+
+        <div class="section-divider"></div>
+
+        <!-- Globale Settings -->
+        <div class="space-y-4 pt-2">
+            <div class="flex items-center justify-between">
+                <span class="text-sm font-medium">Auto-Morph (Sinuswelle)</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="auto-mode" class="sr-only peer">
+                    <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+            </div>
+
+            <div class="slider-container">
+                <div class="slider-label"><span>Lichtintensität</span> <span id="light-val">0.4</span></div>
+                <input type="range" id="light-slider" min="0" max="3" step="0.1" value="0.4">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label"><span>Rotationsgeschwindigkeit</span> <span id="rot-val">0.005</span></div>
+                <input type="range" id="rot-slider" min="0" max="0.05" step="0.001" value="0.005">
+            </div>
+        </div>
+        
+        <div class="mt-4 text-xs text-gray-500 text-center">
+            Three.js r128 • 70 Shapes • 6 Render Modes
+        </div>
+    </div>
+
+    <script>
+        // --- Globale Variablen ---
+        let scene, camera, renderer, controls;
+        let currentMesh; // Kann Mesh, Points oder LineSegments sein
+        let starGroups = [];
+        let ambientLight, dirLight;
+        
+        let isAutoMode = false;
+        let rotationSpeed = 0.005;
+        let time = 0;
+
+        // --- Render Modi Konfiguration ---
+        // Jeder Modus definiert, wie das Material aussieht und ob es Mesh/Points/Lines ist
+        const renderModes = [
+            {
+                name: "Standard (Poliert)",
+                type: 'mesh',
+                params: { 
+                    hue: { val: 0.55, min: 0, max: 1, name: "Farbe (Hue)" },
+                    roughness: { val: 0.3, min: 0, max: 1, name: "Rauheit" },
+                    metalness: { val: 0.7, min: 0, max: 1, name: "Metall" }
+                },
+                createMaterial: (p) => {
+                    const color = new THREE.Color().setHSL(p.hue, 1, 0.5);
+                    return new THREE.MeshStandardMaterial({
+                        color: color,
+                        roughness: p.roughness,
+                        metalness: p.metalness,
+                        side: THREE.DoubleSide
+                    });
+                }
+            },
+            {
+                name: "Neon Gitter",
+                type: 'line',
+                params: {
+                    hue: { val: 0.8, min: 0, max: 1, name: "Neon Farbe" },
+                    opacity: { val: 0.8, min: 0.1, max: 1, name: "Helligkeit" }
+                },
+                createMaterial: (p) => {
+                    const color = new THREE.Color().setHSL(p.hue, 1, 0.5);
+                    return new THREE.LineBasicMaterial({
+                        color: color,
+                        transparent: true,
+                        opacity: p.opacity
+                    });
+                }
+            },
+            {
+                name: "Partikel Wolke",
+                type: 'points',
+                params: {
+                    hue: { val: 0.1, min: 0, max: 1, name: "Farbe" },
+                    size: { val: 0.08, min: 0.01, max: 0.3, name: "Partikelgröße" }
+                },
+                createMaterial: (p) => {
+                    const color = new THREE.Color().setHSL(p.hue, 1, 0.6);
+                    return new THREE.PointsMaterial({
+                        color: color,
+                        size: p.size,
+                        sizeAttenuation: true
+                    });
+                }
+            },
+            {
+                name: "Kristall (Glas)",
+                type: 'mesh',
+                params: {
+                    hue: { val: 0.6, min: 0, max: 1, name: "Tönung" },
+                    transmission: { val: 0.9, min: 0, max: 1, name: "Transparenz" },
+                    clearcoat: { val: 1.0, min: 0, max: 1, name: "Glanzschicht" }
+                },
+                createMaterial: (p) => {
+                    const color = new THREE.Color().setHSL(p.hue, 0.8, 0.9);
+                    return new THREE.MeshPhysicalMaterial({
+                        color: color,
+                        metalness: 0,
+                        roughness: 0.1,
+                        transmission: p.transmission,
+                        opacity: 1,
+                        transparent: true,
+                        side: THREE.DoubleSide,
+                        clearcoat: p.clearcoat,
+                        clearcoatRoughness: 0.1
+                    });
+                }
+            },
+            {
+                name: "Normalen (RGB)",
+                type: 'mesh',
+                params: {
+                    opacity: { val: 1.0, min: 0.1, max: 1, name: "Deckkraft" }
+                },
+                createMaterial: (p) => {
+                    return new THREE.MeshNormalMaterial({
+                        transparent: p.opacity < 1,
+                        opacity: p.opacity,
+                        side: THREE.DoubleSide
+                    });
+                }
+            },
+            {
+                name: "Toon (Comic)",
+                type: 'mesh',
+                params: {
+                    hue: { val: 0.15, min: 0, max: 1, name: "Farbe" }
+                },
+                createMaterial: (p) => {
+                    const color = new THREE.Color().setHSL(p.hue, 0.8, 0.5);
+                    return new THREE.MeshToonMaterial({
+                        color: color,
+                        side: THREE.DoubleSide
+                    });
+                }
+            }
+        ];
+
+        let currentRenderModeIndex = 0;
+        let currentModeParams = {};
+
+        // --- Konfiguration der Topologischen Körper ---
+        const shapes = [
+            // --- STANDARD (1-10) ---
+            {
+                name: "1. Möbiusband (Klassisch)",
+                func: (u, v, target, p) => {
+                    u = u * Math.PI * 2; v = v * 2 - 1;
+                    const x = (p.radius + p.width * v * Math.cos(p.twists * u / 2)) * Math.cos(u);
+                    const y = (p.radius + p.width * v * Math.cos(p.twists * u / 2)) * Math.sin(u);
+                    const z = p.width * v * Math.sin(p.twists * u / 2);
+                    target.set(x, y, z);
+                },
+                params: { radius: { val: 2, min: 0.5, max: 5 }, width: { val: 0.5, min: 0.1, max: 2 }, twists: { val: 1, min: 0, max: 10, step: 1 } }
+            },
+            {
+                name: "2. Torus (Donut)",
+                func: (u, v, target, p) => {
+                    u *= Math.PI * 2; v *= Math.PI * 2;
+                    const x = (p.R + p.r * Math.cos(v)) * Math.cos(u);
+                    const y = (p.R + p.r * Math.cos(v)) * Math.sin(u);
+                    const z = p.r * Math.sin(v);
+                    target.set(x, y, z);
+                },
+                params: { R: { val: 3, min: 1, max: 6 }, r: { val: 1, min: 0.1, max: 2.5 } }
+            },
+            {
+                name: "3. Klein'sche Flasche",
+                func: (u, v, target, p) => {
+                    u *= Math.PI; v *= Math.PI * 2;
+                    let x, y, z;
+                    const cu = Math.cos(u), su = Math.sin(u), cv = Math.cos(v), sv = Math.sin(v);
+                    const r = 4 * (1 - cu / 2);
+                    if (u < Math.PI) { x = 6 * cu * (1 + su) + r * cu * cv; y = 16 * su + r * su * cv; } 
+                    else { x = 6 * cu * (1 + su) + r * Math.cos(u + Math.PI) * cv; y = 16 * su; }
+                    z = r * sv;
+                    target.set(x * p.scale, y * p.scale, z * p.scale);
+                },
+                params: { scale: { val: 0.15, min: 0.05, max: 0.3 } }
+            },
+            {
+                name: "4. Katenoid",
+                func: (u, v, target, p) => {
+                    const uMin = -2, uMax = 2; const U = uMin + u * (uMax - uMin); const V = v * Math.PI * 2;
+                    target.set(p.c * Math.cosh(U/p.c) * Math.cos(V), p.c * Math.cosh(U/p.c) * Math.sin(V), U);
+                },
+                params: { c: { val: 1, min: 0.2, max: 3 } }
+            },
+            {
+                name: "5. Helikoid",
+                func: (u, v, target, p) => {
+                    const uMin = -p.radius, uMax = p.radius; const U = uMin + u * (uMax - uMin); const V = (v - 0.5) * 6 * p.loops;
+                    target.set(U * Math.cos(V), U * Math.sin(V), p.c * V);
+                },
+                params: { radius: { val: 2, min: 0.5, max: 5 }, loops: { val: 1, min: 0.1, max: 4 }, c: { val: 1, min: 0.1, max: 3 } }
+            },
+            {
+                name: "6. Dini's Surface",
+                func: (u, v, target, p) => {
+                    const U = 0.1 + u * 1.9; const V = v * 4 * Math.PI;
+                    const safeU = U * 2 * Math.PI; const safeV = V / 2;
+                    const x = p.a * Math.cos(safeU) * Math.sin(safeV);
+                    const y = p.a * Math.sin(safeU) * Math.sin(safeV);
+                    const z = p.a * (Math.cos(safeV) + Math.log(Math.tan(safeV/2))) + p.b * safeU;
+                    target.set(x, z, y);
+                },
+                params: { a: { val: 1, min: 0.5, max: 2 }, b: { val: 0.2, min: 0, max: 1 } }
+            },
+            {
+                name: "7. Enneper Fläche",
+                func: (u, v, target, p) => {
+                    const U = (u - 0.5) * 2 * p.range; const V = (v - 0.5) * 2 * p.range;
+                    target.set(
+                        U - (U*U*U)/3 + U*V*V,
+                        V - (V*V*V)/3 + V*U*U,
+                        U*U - V*V
+                    );
+                },
+                params: { range: { val: 1.5, min: 0.5, max: 3 } }
+            },
+            {
+                name: "8. Kreuzhaube",
+                func: (u, v, target, p) => {
+                    u *= Math.PI; v *= Math.PI * 2;
+                    target.set(
+                        p.r * Math.sin(u) * Math.sin(2 * v) / 2,
+                        p.r * Math.sin(2 * u) * Math.pow(Math.cos(v), 2),
+                        p.r * Math.cos(2 * u) * Math.pow(Math.cos(v), 2)
+                    );
+                },
+                params: { r: { val: 3, min: 1, max: 6 } }
+            },
+            {
+                name: "9. Wellenkugel",
+                func: (u, v, target, p) => {
+                    u *= Math.PI; v *= Math.PI * 2;
+                    const r = p.r + p.amp * Math.sin(p.freq * u) * Math.cos(p.freq * v);
+                    target.set(r * Math.sin(u) * Math.cos(v), r * Math.sin(u) * Math.sin(v), r * Math.cos(u));
+                },
+                params: { r: { val: 3, min: 1, max: 5 }, freq: { val: 6, min: 1, max: 12 }, amp: { val: 0.5, min: 0, max: 2 } }
+            },
+            {
+                name: "10. Hyperbolisches Paraboloid",
+                func: (u, v, target, p) => {
+                    const U = (u - 0.5) * p.s; const V = (v - 0.5) * p.s;
+                    target.set(U, (U*U)/(p.a*p.a) - (V*V)/(p.b*p.b), V);
+                },
+                params: { s: { val: 4, min: 1, max: 10 }, a: { val: 1, min: 0.5, max: 3 }, b: { val: 1, min: 0.5, max: 3 } }
+            },
+            // --- ERWEITERUNG 1 (11-30) ---
+            {
+                name: "11. Kugel",
+                func: (u, v, target, p) => { u*=Math.PI; v*=Math.PI*2; target.set(p.r*Math.sin(u)*Math.cos(v), p.r*Math.sin(u)*Math.sin(v), p.r*Math.cos(u)); },
+                params: { r: { val: 3, min: 1, max: 6 } }
+            },
+            {
+                name: "12. Ellipsoid",
+                func: (u, v, target, p) => { u*=Math.PI; v*=Math.PI*2; target.set(p.a*Math.sin(u)*Math.cos(v), p.b*Math.sin(u)*Math.sin(v), p.c*Math.cos(u)); },
+                params: { a: { val: 3, min: 1, max: 5 }, b: { val: 2, min: 1, max: 5 }, c: { val: 1.5, min: 0.5, max: 4 } }
+            },
+            {
+                name: "13. Kegel",
+                func: (u, v, target, p) => { u*=Math.PI*2; const r = p.r * (1-v); target.set(r*Math.cos(u), (v-0.5)*p.h, r*Math.sin(u)); },
+                params: { h: { val: 5, min: 1, max: 8 }, r: { val: 2.5, min: 0.5, max: 5 } }
+            },
+            {
+                name: "14. Affensattel",
+                func: (u, v, target, p) => { const s = p.s; const U=(u-0.5)*2*s; const V=(v-0.5)*2*s; target.set(U, U*U*U - 3*U*V*V, V); },
+                params: { s: { val: 1.5, min: 0.5, max: 3 } }
+            },
+            {
+                name: "15. Whitney-Regenschirm",
+                func: (u, v, target, p) => { const U=(u-0.5)*p.s; const V=(v-0.5)*p.s; target.set(U*V, U, V*V); },
+                params: { s: { val: 3, min: 1, max: 6 } }
+            },
+            {
+                name: "16. Römische Fläche",
+                func: (u, v, target, p) => { u*=Math.PI; v*=Math.PI; const s2u=Math.sin(2*u), s2v=Math.sin(2*v); target.set(p.r*s2u*Math.pow(Math.cos(v),2), p.r*Math.sin(u)*s2v, p.r*Math.cos(u)*s2v); },
+                params: { r: { val: 2.5, min: 1, max: 5 } }
+            },
+            {
+                name: "17. Torusknoten",
+                func: (u, v, target, p) => { u*=Math.PI*2; v*=Math.PI*2; const kx=Math.sin(u)+2*Math.sin(2*u); const ky=Math.cos(u)-2*Math.cos(2*u); const kz=-Math.sin(3*u); target.set(2*(kx+p.t*Math.cos(v)*Math.cos(u)), 2*(ky+p.t*Math.cos(v)*Math.sin(u)), 2*(kz+p.t*Math.sin(v))); },
+                params: { t: { val: 0.3, min: 0.1, max: 0.8 } }
+            },
+            {
+                name: "18. Schneckenhaus",
+                func: (u, v, target, p) => { u*=Math.PI*2*p.s; v*=Math.PI*2; const f=(1-u/(2*Math.PI*p.s)); target.set((f*Math.cos(u)*(1+Math.cos(v)))*2, (p.h*u/(2*Math.PI*p.s) + f*Math.sin(v))*2-4, (f*Math.sin(u)*(1+Math.cos(v)))*2); },
+                params: { s: { val: 2, min: 1, max: 5 }, h: { val: 6, min: 1, max: 10 } }
+            },
+            {
+                name: "19. Astroidal Ellipsoid",
+                func: (u, v, target, p) => { u=(u-0.5)*Math.PI; v=(v-0.5)*2*Math.PI; const cu=Math.cos(u),cv=Math.cos(v); target.set(p.s*Math.pow(cu,3)*Math.pow(cv,3), p.s*Math.pow(cu,3)*Math.pow(Math.sin(v),3), p.s*Math.pow(Math.sin(u),3)); },
+                params: { s: { val: 3, min: 1, max: 6 } }
+            },
+            {
+                name: "20. Böhmische Kuppel",
+                func: (u, v, target, p) => { u*=Math.PI*2; v*=Math.PI*2; target.set(p.A*Math.cos(u), p.B*Math.cos(v)+p.A*Math.sin(u), p.C*Math.sin(v)); },
+                params: { A: { val: 2, min: 1, max: 4 }, B: { val: 2, min: 1, max: 4 }, C: { val: 2, min: 1, max: 4 } }
+            },
+            {
+                name: "21. Boy's Surface",
+                func: (u, v, target, p) => { u*=Math.PI; v*=Math.PI; const K = Math.sqrt(2); const x = K*Math.pow(Math.cos(v),2)*Math.cos(2*u)+Math.cos(u)*Math.sin(2*v); const y=K*Math.pow(Math.cos(v),2)*Math.sin(2*u)-Math.sin(u)*Math.sin(2*v); const z=3*Math.pow(Math.cos(v),2); target.set(x*p.s, y*p.s, z*p.s-p.s*1.5); },
+                params: { s: { val: 1.5, min: 0.5, max: 3 } }
+            },
+            {
+                name: "22. Lemniskate",
+                func: (u, v, target, p) => { u*=2*Math.PI; const denom=1+Math.sin(u)**2; target.set(p.s*Math.cos(u)/denom, (v-0.5)*p.h, p.s*Math.sin(u)*Math.cos(u)/denom); },
+                params: { s: { val: 4, min: 1, max: 8 }, h: { val: 6, min: 1, max: 10 } }
+            },
+            {
+                name: "23. Handtuch-Fläche",
+                func: (u, v, target, p) => { u=(u-0.5)*p.r; v=(v-0.5)*p.r; target.set(u, u*u-v*v, v); },
+                params: { r: { val: 4, min: 2, max: 8 } }
+            },
+            {
+                name: "24. Apfel-Fläche",
+                func: (u, v, target, p) => { u*=2*Math.PI; v=(v-0.5)*2*Math.PI; const rho=4+3.8*Math.cos(v); target.set(Math.cos(u)*rho*0.5, Math.sin(u)*rho*0.5, (5*Math.sin(v)+p.d*Math.cos(v))*0.5); },
+                params: { d: { val: 3, min: 0, max: 6 } }
+            },
+            {
+                name: "25. Tractroid (Trichter)",
+                func: (u, v, target, p) => { u*=2*Math.PI; v=0.05+v*3; target.set(p.c*(Math.cos(u)/Math.cosh(v)), p.c*(v-Math.tanh(v))-2, p.c*(Math.sin(u)/Math.cosh(v))); },
+                params: { c: { val: 2, min: 0.5, max: 4 } }
+            },
+            {
+                name: "26. Superform",
+                func: (u, v, target, p) => { u=(u-0.5)*Math.PI; v*=2*Math.PI; const spow=(x,n)=>Math.sign(x)*Math.pow(Math.abs(x),n); target.set(p.s*spow(Math.cos(u),p.n1)*spow(Math.cos(v),p.n2), p.s*spow(Math.cos(u),p.n1)*spow(Math.sin(v),p.n2), p.s*spow(Math.sin(u),p.n1)); },
+                params: { n1: { val: 1, min: 0.2, max: 4 }, n2: { val: 1, min: 0.2, max: 4 }, s: { val: 3, min: 1, max: 5 } }
+            },
+            {
+                name: "27. Plücker-Konoid",
+                func: (u, v, target, p) => { u*=p.r; v*=2*Math.PI; target.set(u*Math.cos(v), u*Math.sin(v), p.n*Math.sin(p.f*v)); },
+                params: { r: { val: 3, min: 1, max: 6 }, n: { val: 1, min: 0.5, max: 3 }, f: { val: 2, min: 1, max: 6, step: 1 } }
+            },
+            {
+                name: "28. Kissen-Form",
+                func: (u, v, target, p) => { u*=Math.PI; v*=2*Math.PI; target.set(p.s*Math.sin(u)*Math.cos(v), p.s*Math.sin(u)*Math.sin(v), p.s*0.5*Math.sin(2*u)*Math.cos(p.t*v)); },
+                params: { s: { val: 3.5, min: 1, max: 6 }, t: { val: 2, min: 0, max: 5 } }
+            },
+            {
+                name: "29. Corkscrew",
+                func: (u, v, target, p) => { u*=2*Math.PI; v=(v-0.5)*p.h; const e=Math.exp(-v/5); target.set(p.a*Math.cos(u)*e, v, p.a*Math.sin(u)*e); },
+                params: { a: { val: 2.5, min: 1, max: 5 }, h: { val: 6, min: 2, max: 10 } }
+            },
+            {
+                name: "30. Acht-Knoten-Fläche",
+                func: (u, v, target, p) => { u*=2*Math.PI; v=(v-0.5)*2; const r=p.r; target.set(r*Math.sin(u), v*p.w, r*Math.sin(u)*Math.cos(u)); },
+                params: { r: { val: 4, min: 1, max: 6 }, w: { val: 3, min: 1, max: 6 } }
+            },
+            // --- ERWEITERUNG 2 (31-50) ---
+            {
+                name: "31. Sombrero (Mexican Hat)",
+                func: (u, v, target, p) => { 
+                    u = (u - 0.5) * p.size; v = (v - 0.5) * p.size;
+                    const r = Math.sqrt(u*u + v*v);
+                    const z = p.h * (r === 0 ? 1 : Math.sin(r * p.freq) / r);
+                    target.set(u, z, v);
+                },
+                params: { size: { val: 20, min: 5, max: 30 }, h: { val: 4, min: 1, max: 10 }, freq: { val: 1, min: 0.5, max: 3 } }
+            },
+            {
+                name: "32. Herz-Fläche",
+                func: (u, v, target, p) => { 
+                    u = u * Math.PI; v = v * 2 * Math.PI;
+                    const x = p.s * 16 * Math.pow(Math.sin(u), 3);
+                    const z = p.s * (13 * Math.cos(u) - 5 * Math.cos(2*u) - 2 * Math.cos(3*u) - Math.cos(4*u));
+                    target.set(x * Math.cos(v), z, x * Math.sin(v));
+                },
+                params: { s: { val: 0.15, min: 0.05, max: 0.3 } }
+            },
+            {
+                name: "33. Catalan-Fläche",
+                func: (u, v, target, p) => { 
+                    u = (u - 0.5) * 4 * Math.PI; v = (v - 0.5) * p.w;
+                    const x = u - Math.sin(u) * Math.cosh(v);
+                    const y = 1 - Math.cos(u) * Math.cosh(v);
+                    const z = 4 * Math.sin(u/2) * Math.sinh(v/2);
+                    target.set(x * 0.5, y * 0.5, z * 0.5);
+                },
+                params: { w: { val: 1.5, min: 0.5, max: 3 } }
+            },
+            {
+                name: "34. Gabriels Horn",
+                func: (u, v, target, p) => { 
+                    u = 0.1 + u * 5; 
+                    v *= 2 * Math.PI;
+                    const r = p.a / u;
+                    target.set(u - 2.5, r * Math.cos(v), r * Math.sin(v));
+                },
+                params: { a: { val: 2, min: 0.5, max: 4 } }
+            },
+            {
+                name: "35. DNA-Helix",
+                func: (u, v, target, p) => { 
+                    u *= 8 * Math.PI; v *= 2 * Math.PI;
+                    const r = p.r;
+                    const offset = v < Math.PI ? 0 : Math.PI; 
+                    const h = (u / (8 * Math.PI)) * p.h - p.h/2;
+                    const tubeR = 0.4;
+                    const cx = r * Math.cos(u + offset);
+                    const cz = r * Math.sin(u + offset);
+                    target.set(cx + tubeR * Math.cos(v) * Math.cos(u), h + tubeR * Math.sin(v), cz + tubeR * Math.cos(v) * Math.sin(u));
+                },
+                params: { r: { val: 2, min: 1, max: 4 }, h: { val: 10, min: 5, max: 20 } }
+            },
+            {
+                name: "36. Schwalbenschwanz",
+                func: (u, v, target, p) => { 
+                    u = (u - 0.5) * 2; v = (v - 0.5) * 2;
+                    const X = -4 * Math.pow(u, 3) - 2 * u * v;
+                    const Y = v;
+                    const Z = 3 * Math.pow(u, 4) + u*u * v;
+                    target.set(X*p.s, Z*p.s, Y*p.s);
+                },
+                params: { s: { val: 1, min: 0.5, max: 2 } }
+            },
+            {
+                name: "37. Wellen-Ebene",
+                func: (u, v, target, p) => { 
+                    u = (u-0.5)*p.dim; v=(v-0.5)*p.dim;
+                    target.set(u, p.amp * Math.sin(u)*Math.sin(v), v);
+                },
+                params: { dim: { val: 10, min: 4, max: 20 }, amp: { val: 2, min: 0.5, max: 5 } }
+            },
+            {
+                name: "38. Spirale (Log.)",
+                func: (u, v, target, p) => { 
+                    u *= p.loops * 2 * Math.PI; v = (v - 0.5) * 2;
+                    const r = p.a * Math.exp(p.b * u);
+                    target.set(r * Math.cos(u), v, r * Math.sin(u));
+                },
+                params: { loops: { val: 2, min: 1, max: 4 }, a: { val: 0.5, min: 0.1, max: 1 }, b: { val: 0.15, min: 0.05, max: 0.3 } }
+            },
+            {
+                name: "39. Maeder's Owl",
+                func: (u, v, target, p) => { 
+                    u = (u - 0.5) * 4 * Math.PI; v = v * 2 * Math.PI;
+                    const r = u*u/p.s;
+                    target.set(r * Math.cos(u) * Math.cos(v), r * Math.sin(u) * Math.cos(v), r * Math.sin(v));
+                },
+                params: { s: { val: 20, min: 10, max: 50 } }
+            },
+            {
+                name: "40. Nieren-Fläche",
+                func: (u, v, target, p) => { 
+                    u *= 2 * Math.PI; v = (v - 0.5) * 2 * Math.PI;
+                    const x = Math.cos(u) * (3 * Math.cos(v) - Math.cos(3*v));
+                    const y = Math.sin(u) * (3 * Math.cos(v) - Math.cos(3*v));
+                    const z = 3 * Math.sin(v) - Math.sin(3*v);
+                    target.set(x * 0.5 * p.s, y * 0.5 * p.s, z * 0.5 * p.s);
+                },
+                params: { s: { val: 1.5, min: 0.5, max: 3 } }
+            },
+            {
+                name: "41. Mülleimer",
+                func: (u, v, target, p) => { 
+                    u *= 2 * Math.PI; v = (v - 0.5) * p.h;
+                    const r = p.r + 0.5 * Math.sin(5 * u) * Math.exp(-v*v);
+                    target.set(r * Math.cos(u), v, r * Math.sin(u));
+                },
+                params: { r: { val: 2, min: 1, max: 4 }, h: { val: 6, min: 2, max: 10 } }
+            },
+            {
+                name: "42. Kuen's Surface",
+                func: (u, v, target, p) => { 
+                    u = (u - 0.5) * 4; v = 0.01 + v * 3;
+                    const denom = 1 + u*u * Math.sin(v)*Math.sin(v);
+                    const x = 2 * (Math.cos(u) + u*Math.sin(u)) * Math.sin(v) / denom;
+                    const y = 2 * (Math.sin(u) - u*Math.cos(u)) * Math.sin(v) / denom;
+                    const z = Math.log(Math.tan(v/2)) + 2*Math.cos(v)/denom;
+                    target.set(x * p.s, z * p.s, y * p.s);
+                },
+                params: { s: { val: 1.5, min: 0.5, max: 3 } }
+            },
+            {
+                name: "43. Regenbogen-Bogen",
+                func: (u, v, target, p) => { 
+                    u *= Math.PI; v *= 2 * Math.PI;
+                    const x = (p.R + p.r * Math.cos(v)) * Math.cos(u);
+                    const y = (p.R + p.r * Math.cos(v)) * Math.sin(u);
+                    const z = p.r * Math.sin(v);
+                    target.set(x, z, y);
+                },
+                params: { R: { val: 4, min: 2, max: 8 }, r: { val: 1, min: 0.5, max: 3 } }
+            },
+            {
+                name: "44. Richmond-Fläche",
+                func: (u, v, target, p) => { 
+                    u = (u - 0.5) * 2; v = (v - 0.5) * 2;
+                    const x = -u*u*u/3 - u*v*v + u;
+                    const y = -u*u*v - v*v*v/3 + v;
+                    const z = u*u - v*v;
+                    target.set(x*p.s, y*p.s, z*p.s);
+                },
+                params: { s: { val: 3, min: 1, max: 5 } }
+            },
+            {
+                name: "45. Steinhut",
+                func: (u, v, target, p) => { 
+                    u *= 2*Math.PI; v=(v-0.5)*p.h;
+                    const r = p.r * Math.abs(Math.sin(3*u)) + 1;
+                    target.set(r * Math.cos(u), v, r * Math.sin(u));
+                },
+                params: { r: { val: 2, min: 0, max: 5 }, h: { val: 5, min: 2, max: 8 } }
+            },
+            {
+                name: "46. Achterbahn",
+                func: (u, v, target, p) => { 
+                    u *= 2 * Math.PI; v *= 2 * Math.PI;
+                    const px = Math.cos(u) * (p.r + Math.cos(3*u));
+                    const py = Math.sin(u) * (p.r + Math.cos(3*u));
+                    const pz = Math.sin(3*u) * 2;
+                    target.set(px + 0.3*Math.cos(v), py + 0.3*Math.sin(v), pz);
+                },
+                params: { r: { val: 4, min: 2, max: 6 } }
+            },
+            {
+                name: "47. Kissen 2",
+                func: (u, v, target, p) => { 
+                    u = (u - 0.5) * Math.PI; v = (v - 0.5) * Math.PI;
+                    target.set(p.s * Math.sin(u), p.s * Math.sin(v), p.s * Math.cos(u)*Math.cos(v));
+                },
+                params: { s: { val: 3, min: 1, max: 5 } }
+            },
+            {
+                name: "48. Vase",
+                func: (u, v, target, p) => { 
+                    u *= 2 * Math.PI; v = v * p.h;
+                    const r = 2 + Math.sin(v) + Math.cos(2*v)*0.5;
+                    target.set(r * Math.cos(u), v - p.h/2, r * Math.sin(u));
+                },
+                params: { h: { val: 6, min: 3, max: 10 } }
+            },
+            {
+                name: "49. Fisch-Fläche",
+                func: (u, v, target, p) => { 
+                    u *= Math.PI; v *= 2 * Math.PI;
+                    const x = Math.cos(u) - Math.pow(Math.sin(u), 2) / Math.sqrt(2);
+                    const y = Math.cos(u) * Math.sin(2*v);
+                    const z = Math.sin(u); 
+                    target.set((x - Math.sin(v))*p.s, z*p.s, y*p.s);
+                },
+                params: { s: { val: 3, min: 1, max: 5 } }
+            },
+            {
+                name: "50. Saturn",
+                func: (u, v, target, p) => { 
+                    u *= Math.PI; v *= 2 * Math.PI;
+                    const rSphere = p.r;
+                    const rRingIn = p.r * 1.4;
+                    const rRingOut = p.r * 2.2;
+                    if (u/Math.PI < 0.7) {
+                        const uS = (u/Math.PI) / 0.7 * Math.PI;
+                        target.set(rSphere*Math.sin(uS)*Math.cos(v), rSphere*Math.cos(uS), rSphere*Math.sin(uS)*Math.sin(v));
+                    } else {
+                        const uR = (u/Math.PI - 0.7) / 0.3;
+                        const rad = rRingIn + uR * (rRingOut - rRingIn);
+                        target.set(rad * Math.cos(v), 0, rad * Math.sin(v));
+                    }
+                },
+                params: { r: { val: 2, min: 1, max: 3 } }
+            },
+            // --- ERWEITERUNG 3 (51-70) ---
+            {
+                name: "51. Verdrehtes Rohr",
+                func: (u, v, target, p) => { 
+                    u *= 2*Math.PI; v *= 2*Math.PI;
+                    const r = 2 + Math.sin(3*u) + Math.cos(v);
+                    target.set(r*Math.cos(u), r*Math.sin(u), p.h * Math.sin(v));
+                },
+                params: { h: { val: 2, min: 1, max: 4 } }
+            },
+            {
+                name: "52. Bent Horn",
+                func: (u, v, target, p) => { 
+                    u = u*2*Math.PI; v = v*2*Math.PI;
+                    const r = p.a * Math.exp(0.2*u);
+                    target.set(r*Math.cos(u)*Math.cos(v), r*Math.sin(u)*Math.cos(v), r*Math.sin(v) + u);
+                },
+                params: { a: { val: 1, min: 0.5, max: 2 } }
+            },
+            {
+                name: "53. Wave Torus",
+                func: (u, v, target, p) => { 
+                    u *= 2*Math.PI; v *= 2*Math.PI;
+                    const r = p.r + 0.3*Math.sin(p.w*u);
+                    target.set((p.R+r*Math.cos(v))*Math.cos(u), (p.R+r*Math.cos(v))*Math.sin(u), r*Math.sin(v));
+                },
+                params: { R: { val: 4, min: 2, max: 6 }, r: { val: 1, min: 0.5, max: 2 }, w: { val: 5, min: 2, max: 10 } }
+            },
+            {
+                name: "54. Pillow Shape 3",
+                func: (u, v, target, p) => { 
+                    u = (u-0.5)*Math.PI; v = (v-0.5)*Math.PI;
+                    target.set(p.s*Math.cos(u), p.s*Math.cos(v), p.s*Math.sin(u)*Math.sin(v));
+                },
+                params: { s: { val: 3, min: 1, max: 5 } }
+            },
+            {
+                name: "55. Pseudo-Sphere",
+                func: (u, v, target, p) => { 
+                    u = (u-0.5)*p.h; v *= 2*Math.PI;
+                    // Approx
+                    const r = Math.exp(-u); 
+                    target.set(r*Math.cos(v), u, r*Math.sin(v));
+                },
+                params: { h: { val: 4, min: 2, max: 6 } }
+            },
+            {
+                name: "56. Twisted Ribbon",
+                func: (u, v, target, p) => { 
+                    u *= 4*Math.PI; v = (v-0.5)*p.w;
+                    target.set(u, v*Math.cos(u), v*Math.sin(u));
+                },
+                params: { w: { val: 2, min: 0.5, max: 4 } }
+            },
+            {
+                name: "57. Cone-Sphere Morph",
+                func: (u, v, target, p) => { 
+                    u *= Math.PI; v *= 2*Math.PI;
+                    // p.m = 0 (Cone) -> 1 (Sphere)
+                    const r = p.r * (1 - p.m * (1-Math.sin(u))); 
+                    target.set(r*Math.sin(u)*Math.cos(v), r*Math.cos(u), r*Math.sin(u)*Math.sin(v));
+                },
+                params: { r: { val: 3, min: 1, max: 5 }, m: { val: 0.5, min: 0, max: 1 } }
+            },
+            {
+                name: "58. Flower Shape",
+                func: (u, v, target, p) => { 
+                    u *= Math.PI; v *= 2*Math.PI;
+                    const r = p.s * (1 + 0.3*Math.sin(p.petals*v)*Math.sin(u));
+                    target.set(r*Math.sin(u)*Math.cos(v), r*Math.sin(u)*Math.sin(v), r*Math.cos(u));
+                },
+                params: { s: { val: 3, min: 1, max: 5 }, petals: { val: 6, min: 3, max: 10 } }
+            },
+            {
+                name: "59. Gear Shape",
+                func: (u, v, target, p) => { 
+                    u *= 2*Math.PI; v = (v-0.5)*p.h;
+                    const r = p.r + 0.4*Math.sign(Math.sin(p.teeth*u));
+                    target.set(r*Math.cos(u), v, r*Math.sin(u));
+                },
+                params: { r: { val: 2.5, min: 1, max: 4 }, h: { val: 2, min: 1, max: 4 }, teeth: { val: 8, min: 4, max: 12 } }
+            },
+            {
+                name: "60. Holes Surface",
+                func: (u, v, target, p) => { 
+                    u = (u-0.5)*2*Math.PI; v = (v-0.5)*2*Math.PI;
+                    const z = Math.sin(u) * Math.sin(v);
+                    target.set(u, z*p.s, v);
+                },
+                params: { s: { val: 2, min: 1, max: 4 } }
+            },
+            {
+                name: "61. Bumpy Sphere",
+                func: (u, v, target, p) => { 
+                    u *= Math.PI; v *= 2*Math.PI;
+                    const r = p.r + 0.2*Math.sin(p.f*u)*Math.sin(p.f*v);
+                    target.set(r*Math.sin(u)*Math.cos(v), r*Math.sin(u)*Math.sin(v), r*Math.cos(u));
+                },
+                params: { r: { val: 3, min: 2, max: 5 }, f: { val: 10, min: 5, max: 20 } }
+            },
+            {
+                name: "62. Spiral Tube",
+                func: (u, v, target, p) => { 
+                    u *= 4*Math.PI; v *= 2*Math.PI;
+                    const R = 3; const r = 0.8;
+                    const x = (R + r*Math.cos(v))*Math.cos(u);
+                    const y = (R + r*Math.cos(v))*Math.sin(u);
+                    const z = r*Math.sin(v) + p.h*u;
+                    target.set(x, z - p.h*6, y);
+                },
+                params: { h: { val: 0.5, min: 0.1, max: 1 } }
+            },
+            {
+                name: "63. Infinity Loop",
+                func: (u, v, target, p) => { 
+                    u *= 2*Math.PI; v *= 2*Math.PI;
+                    const r = 0.5;
+                    const pathX = p.s * Math.cos(u);
+                    const pathY = p.s * Math.sin(u)*Math.cos(u);
+                    target.set(pathX + r*Math.cos(v), pathY + r*Math.sin(v), r*Math.sin(v)*Math.sin(u));
+                },
+                params: { s: { val: 3, min: 2, max: 5 } }
+            },
+            {
+                name: "64. Twisted Cylinder",
+                func: (u, v, target, p) => { 
+                    u *= 2*Math.PI; v = (v-0.5)*p.h;
+                    const x = p.r*Math.cos(u + v*p.twist);
+                    const z = p.r*Math.sin(u + v*p.twist);
+                    target.set(x, v, z);
+                },
+                params: { r: { val: 2, min: 1, max: 3 }, h: { val: 5, min: 2, max: 8 }, twist: { val: 0.5, min: 0, max: 2 } }
+            },
+            {
+                name: "65. Ripple Plane",
+                func: (u, v, target, p) => { 
+                    u = (u-0.5)*10; v = (v-0.5)*10;
+                    const d = Math.sqrt(u*u+v*v);
+                    target.set(u, p.a*Math.sin(d*2)/d, v);
+                },
+                params: { a: { val: 2, min: 0.5, max: 4 } }
+            },
+            {
+                name: "66. Standing Wave",
+                func: (u, v, target, p) => { 
+                    u = (u-0.5)*Math.PI*2; v = (v-0.5)*Math.PI*2;
+                    target.set(u, Math.sin(u)*Math.cos(v)*p.s, v);
+                },
+                params: { s: { val: 2, min: 0.5, max: 3 } }
+            },
+            {
+                name: "67. Hyperbolic Octahedron",
+                func: (u, v, target, p) => { 
+                    u = (u-0.5)*2; v = (v-0.5)*2;
+                    target.set(Math.pow(u,3)*p.s, Math.pow(v,3)*p.s, (u*v)*p.s);
+                },
+                params: { s: { val: 3, min: 1, max: 5 } }
+            },
+            {
+                name: "68. Squircle Column",
+                func: (u, v, target, p) => { 
+                    u *= 2*Math.PI; v = (v-0.5)*p.h;
+                    const r = p.r / (Math.abs(Math.cos(u))**0.5 + Math.abs(Math.sin(u))**0.5); // Approx squircle
+                    target.set(r*Math.cos(u), v, r*Math.sin(u));
+                },
+                params: { r: { val: 3, min: 1, max: 5 }, h: { val: 5, min: 2, max: 8 } }
+            },
+            {
+                name: "69. Noise Blob (Sine)",
+                func: (u, v, target, p) => { 
+                    u *= Math.PI; v *= 2*Math.PI;
+                    const n = Math.sin(5*u)*Math.cos(5*v);
+                    const r = p.r + 0.5*n;
+                    target.set(r*Math.sin(u)*Math.cos(v), r*Math.cos(u), r*Math.sin(u)*Math.sin(v));
+                },
+                params: { r: { val: 3, min: 2, max: 5 } }
+            },
+            {
+                name: "70. Shell Spiral",
+                func: (u, v, target, p) => { 
+                    u *= 2*Math.PI; v *= 2*Math.PI;
+                    // Logarithmic spiral base
+                    const a = 0.2; const b = 0.2;
+                    const r = a*Math.exp(b*u);
+                    target.set(r*Math.cos(u), p.h*(u/10) + Math.cos(v), r*Math.sin(u));
+                },
+                params: { h: { val: 2, min: 1, max: 5 } }
+            }
+        ];
+
+        let currentShapeIndex = 0;
+        let currentParams = {};
+
+        // --- Init ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000000, 0.02);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 12);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // Start Light Intensity: 0.4
+            ambientLight = new THREE.AmbientLight(0x404040, 0.4 * 0.5);
+            scene.add(ambientLight);
+
+            dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+            dirLight.position.set(5, 10, 7);
+            scene.add(dirLight);
+
+            const pl1 = new THREE.PointLight(0x3366ff, 0.4, 20);
+            pl1.position.set(-5, 5, 5);
+            scene.add(pl1);
+            const pl2 = new THREE.PointLight(0xff6633, 0.4, 20);
+            pl2.position.set(5, -5, 5);
+            scene.add(pl2);
+
+            createStarField();
+            initUI();
+            
+            // Start im Comic Mode (Index 5)
+            loadRenderMode(5);
+            loadShape(0);
+
+            window.addEventListener('resize', onWindowResize, false);
+            animate();
+        }
+
+        // --- Verbessertes Sternenfeld ---
+        function createStarField() {
+            // Wir erstellen 3 Gruppen von Sternen für verschiedene Größen
+            const layers = [
+                { count: 8000, size: 0.05, range: 150 }, // Viele kleine (Hintergrund)
+                { count: 5000, size: 0.12, range: 120 }, // Mittlere
+                { count: 2000, size: 0.25, range: 100 }  // Große Prominente
+            ];
+
+            layers.forEach(layer => {
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(layer.count * 3);
+                for(let i=0; i<layer.count*3; i+=3) {
+                    const r = 40 + Math.random() * layer.range;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    positions[i] = r * Math.sin(phi) * Math.cos(theta);
+                    positions[i+1] = r * Math.sin(phi) * Math.sin(theta);
+                    positions[i+2] = r * Math.cos(phi);
+                }
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                
+                // Quadratische Sterne (Default PointsMaterial ohne Map ist quadratisch)
+                const material = new THREE.PointsMaterial({ 
+                    color: 0xffffff, 
+                    size: layer.size, 
+                    transparent: true, 
+                    opacity: 0.8,
+                    sizeAttenuation: true 
+                });
+                
+                const points = new THREE.Points(geometry, material);
+                starGroups.push(points);
+                scene.add(points);
+            });
+        }
+
+        function createParametricGeometry(func, slices, stacks, params) {
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [], indices = [], uvs = [];
+            const target = new THREE.Vector3();
+            const sliceCount = slices + 1;
+
+            for (let i = 0; i <= stacks; i++) {
+                const v = i / stacks;
+                for (let j = 0; j <= slices; j++) {
+                    const u = j / slices;
+                    func(u, v, target, params);
+                    vertices.push(target.x, target.y, target.z);
+                    uvs.push(u, v);
+                }
+            }
+
+            for (let i = 0; i < stacks; i++) {
+                for (let j = 0; j < slices; j++) {
+                    const a = i * sliceCount + j;
+                    const b = i * sliceCount + j + 1;
+                    const c = (i + 1) * sliceCount + j + 1;
+                    const d = (i + 1) * sliceCount + j;
+                    indices.push(a, b, d);
+                    indices.push(b, c, d);
+                }
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        function updateMesh() {
+            if (currentMesh) {
+                scene.remove(currentMesh);
+                currentMesh.geometry.dispose();
+                if(currentMesh.material) currentMesh.material.dispose();
+            }
+
+            const shape = shapes[currentShapeIndex];
+            const mode = renderModes[currentRenderModeIndex];
+            
+            const res = (mode.type === 'points') ? 120 : 90;
+            const geometry = createParametricGeometry(shape.func, res, res, currentParams);
+            const material = mode.createMaterial(currentModeParams);
+
+            if (mode.type === 'points') {
+                currentMesh = new THREE.Points(geometry, material);
+            } else if (mode.type === 'line') {
+                currentMesh = new THREE.LineSegments(new THREE.WireframeGeometry(geometry), material);
+            } else {
+                currentMesh = new THREE.Mesh(geometry, material);
+            }
+
+            scene.add(currentMesh);
+        }
+
+        function initUI() {
+            // --- Shape Selector ---
+            const selector = document.getElementById('shape-select');
+            shapes.forEach((s, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.text = s.name;
+                selector.appendChild(opt);
+            });
+            selector.addEventListener('change', (e) => loadShape(parseInt(e.target.value)));
+
+            // --- Render Mode Selector ---
+            const modeSelector = document.getElementById('mode-select');
+            renderModes.forEach((m, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.text = m.name;
+                modeSelector.appendChild(opt);
+            });
+            modeSelector.addEventListener('change', (e) => loadRenderMode(parseInt(e.target.value)));
+
+            // Panel Buttons Shape
+            document.getElementById('prev-btn').addEventListener('click', prevShape);
+            document.getElementById('next-btn').addEventListener('click', nextShape);
+
+            // Panel Buttons Mode (NEU)
+            document.getElementById('mode-prev-btn').addEventListener('click', prevMode);
+            document.getElementById('mode-next-btn').addEventListener('click', nextMode);
+
+            // Floating Buttons
+            document.getElementById('float-prev').addEventListener('click', prevShape);
+            document.getElementById('float-next').addEventListener('click', nextShape);
+
+            document.getElementById('auto-mode').addEventListener('change', (e) => isAutoMode = e.target.checked);
+            
+            document.getElementById('light-slider').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                dirLight.intensity = val;
+                ambientLight.intensity = val * 0.5;
+                document.getElementById('light-val').innerText = val.toFixed(1);
+            });
+
+            document.getElementById('rot-slider').addEventListener('input', (e) => {
+                rotationSpeed = parseFloat(e.target.value);
+                document.getElementById('rot-val').innerText = rotationSpeed.toFixed(3);
+            });
+        }
+
+        // --- Mode Logic ---
+        function loadRenderMode(index) {
+            currentRenderModeIndex = index;
+            document.getElementById('mode-select').value = index;
+            
+            const mode = renderModes[index];
+            const container = document.getElementById('mode-parameters-container');
+            container.innerHTML = '';
+            currentModeParams = {};
+
+            for (const [key, conf] of Object.entries(mode.params)) {
+                currentModeParams[key] = conf.val;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'slider-container';
+                wrapper.style.marginBottom = '8px';
+
+                const labelDiv = document.createElement('div');
+                labelDiv.className = 'slider-label';
+                labelDiv.innerHTML = `<span>${conf.name}</span><span id="mode-val-${key}">${conf.val.toFixed(2)}</span>`;
+                
+                const input = document.createElement('input');
+                input.type = 'range';
+                input.min = conf.min;
+                input.max = conf.max;
+                input.step = 0.01;
+                input.value = conf.val;
+
+                input.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    currentModeParams[key] = val;
+                    document.getElementById(`mode-val-${key}`).innerText = val.toFixed(2);
+                    updateMesh();
+                });
+
+                wrapper.appendChild(labelDiv);
+                wrapper.appendChild(input);
+                container.appendChild(wrapper);
+            }
+            updateMesh();
+        }
+
+        function prevMode() {
+            let newIndex = currentRenderModeIndex - 1;
+            if (newIndex < 0) newIndex = renderModes.length - 1;
+            loadRenderMode(newIndex);
+        }
+
+        function nextMode() {
+            let newIndex = currentRenderModeIndex + 1;
+            if (newIndex >= renderModes.length) newIndex = 0;
+            loadRenderMode(newIndex);
+        }
+
+        // --- Shape Logic ---
+        function prevShape() {
+            let newIndex = currentShapeIndex - 1;
+            if (newIndex < 0) newIndex = shapes.length - 1;
+            document.getElementById('shape-select').value = newIndex;
+            loadShape(newIndex);
+        }
+
+        function nextShape() {
+            let newIndex = currentShapeIndex + 1;
+            if (newIndex >= shapes.length) newIndex = 0;
+            document.getElementById('shape-select').value = newIndex;
+            loadShape(newIndex);
+        }
+
+        function toggleUI() {
+            document.getElementById('ui-panel').classList.toggle('hidden-ui');
+        }
+
+        function loadShape(index) {
+            currentShapeIndex = index;
+            const shape = shapes[index];
+            const container = document.getElementById('parameters-container');
+            container.innerHTML = ''; 
+            currentParams = {};
+            
+            if (shape.params && Object.keys(shape.params).length > 0) {
+                for (const [key, conf] of Object.entries(shape.params)) {
+                    currentParams[key] = conf.val;
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'slider-container';
+                    
+                    const labelDiv = document.createElement('div');
+                    labelDiv.className = 'slider-label';
+                    labelDiv.innerHTML = `<span>${key.charAt(0).toUpperCase() + key.slice(1)}</span><span id="val-${key}">${conf.val.toFixed(2)}</span>`;
+                    
+                    const input = document.createElement('input');
+                    input.type = 'range';
+                    input.min = conf.min;
+                    input.max = conf.max;
+                    input.step = conf.step || 0.1;
+                    input.value = conf.val;
+                    input.dataset.key = key;
+
+                    input.addEventListener('input', (e) => {
+                        const val = parseFloat(e.target.value);
+                        currentParams[key] = val;
+                        document.getElementById(`val-${key}`).innerText = val.toFixed(2);
+                        if (!isAutoMode) updateMesh(); 
+                    });
+
+                    wrapper.appendChild(labelDiv);
+                    wrapper.appendChild(input);
+                    container.appendChild(wrapper);
+                }
+            } else {
+                container.innerHTML = '<div class="text-gray-500 text-sm italic text-center p-2">Keine Parameter verfügbar</div>';
+            }
+            updateMesh();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+
+            if (isAutoMode) {
+                const shape = shapes[currentShapeIndex];
+                let changed = false;
+                if(shape.params) {
+                    let i = 0;
+                    for (const [key, conf] of Object.entries(shape.params)) {
+                        const range = conf.max - conf.min;
+                        const mid = conf.min + range / 2;
+                        const newVal = mid + (range / 2.5) * Math.sin(time + i);
+                        currentParams[key] = newVal;
+                        
+                        const slider = document.querySelector(`input[data-key="${key}"]`);
+                        if(slider) slider.value = newVal;
+                        const label = document.getElementById(`val-${key}`);
+                        if(label) label.innerText = newVal.toFixed(2);
+                        changed = true;
+                        i++;
+                    }
+                }
+                if(changed) updateMesh();
+            }
+
+            if (currentMesh) {
+                currentMesh.rotation.y += rotationSpeed;
+                currentMesh.rotation.x += rotationSpeed * 0.5;
+            }
+            
+            // Sterne rotieren langsamer und unterschiedlich
+            if (starGroups.length > 0) {
+                starGroups.forEach((g, i) => {
+                    g.rotation.y -= 0.0001 * (i + 1);
+                });
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
